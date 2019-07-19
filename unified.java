@@ -2,7 +2,7 @@ import java.util.regex.*;
 import java.net.*;
 import java.sql.*;
 
-public class coincidencies
+public class unified
 {
 	static Statement stmt = null; 
 	static ResultSet rsPerVeure = null; 
@@ -10,7 +10,7 @@ public class coincidencies
 	Connection conn;
 	
 
-	public coincidencies(URL url,String ascii,String textSencer,Connection conn,Statement stmt)
+	public unified(URL url,String ascii,String textSencer,Connection conn,Statement stmt)
 	{	
 			int id_pagina=0,i=0,id_paraula=0;
 			
@@ -84,34 +84,34 @@ public class coincidencies
 
 					if(paraula.length()<50)
 					{
-						rsPerVeure = stmt.executeQuery("SELECT * FROM coincidencies WHERE paraula='"+id_paraula+"' AND pagina='"+id_pagina+"'");
+						rsPerVeure = stmt.executeQuery("SELECT * FROM unified WHERE paraula='"+id_paraula+"' AND pagina='"+id_pagina+"'");
 					
-						int n_coincidencies=0,id_coincidencies=0;
+						int n_unified=0,id_unified=0;
 						
 						if(countItems(rsPerVeure)>0)
 						{
 						
 							rsPerVeure.first(); 
-							n_coincidencies=rsPerVeure.getInt("n_coincidencies");
-							id_coincidencies=rsPerVeure.getInt("id");
-							n_coincidencies++;
+							n_unified=rsPerVeure.getInt("n_unified");
+							id_unified=rsPerVeure.getInt("id");
+							n_unified++;
 
-							rsPerVeure.updateString("n_coincidencies",new Integer(n_coincidencies).toString());
+							rsPerVeure.updateString("n_unified",new Integer(n_unified).toString());
 							rsPerVeure.updateRow();
 
 						}
 						else
-							stmt.execute("INSERT INTO coincidencies (paraula,pagina,n_coincidencies) VALUES ('"+id_paraula+"','"+id_pagina+"','1')");
+							stmt.execute("INSERT INTO unified (paraula,pagina,n_unified) VALUES ('"+id_paraula+"','"+id_pagina+"','1')");
 					}
 								
 					resultado=m.find();
 				}					
 				
 					
-			comprovaCoincidencies(textSencer,id_pagina,"<b>.+</b>");
-			comprovaCoincidencies(textSencer,id_pagina,"<B>.+</B>");
-			comprovaCoincidencies(textSencer,id_pagina,"<h1>.+</h1>");
-			comprovaCoincidencies(textSencer,id_pagina,"<H1>.+</H1>");
+			comprovaunified(textSencer,id_pagina,"<b>.+</b>");
+			comprovaunified(textSencer,id_pagina,"<B>.+</B>");
+			comprovaunified(textSencer,id_pagina,"<h1>.+</h1>");
+			comprovaunified(textSencer,id_pagina,"<H1>.+</H1>");
 
 			freeResultSets();
 			
@@ -208,7 +208,7 @@ public class coincidencies
 			Matcher m,m1;
 			boolean resultado;
 			String paraula="",subParaula="";
-			int id_paraula=0,coincidencies=0;
+			int id_paraula=0,unified=0;
 			
 			try
 			{
@@ -256,13 +256,13 @@ public class coincidencies
 							
 							
 							
-							rsPerVeure = stmt.executeQuery("SELECT * FROM coincidencies WHERE paraula='"+id_paraula+"' AND pagina='"+id_pagina+"'");
+							rsPerVeure = stmt.executeQuery("SELECT * FROM unified WHERE paraula='"+id_paraula+"' AND pagina='"+id_pagina+"'");
 							rsPerVeure.first();
-							coincidencies=rsPerVeure.getInt("n_coincidencies");
+							unified=rsPerVeure.getInt("n_unified");
 
 							
-							coincidencies++;
-							rsPerVeure.updateString("n_coincidencies",new Integer(coincidencies).toString()); 
+							unified++;
+							rsPerVeure.updateString("n_unified",new Integer(unified).toString()); 
 							rsPerVeure.updateRow();
 						
 							resultado=m1.find();
