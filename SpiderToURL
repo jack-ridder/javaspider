@@ -1,0 +1,515 @@
+import java.io.*;
+import java.net.*;
+import java.util.regex.*;
+import java.sql.*;
+
+public class SpiderToURL extends Thread
+{
+	URL url_a_baixar;
+	Statement stmt = null; 
+	ResultSet rsVistos = null;
+	ResultSet rsPerVeure = null; 
+	ResultSet rs = null;
+	concurrencia conc;
+	boolean control;
+	Connection conn;
+	int n_links=0;
+	int n_links_other=0;
+	int id_scanning;
+
+	public SpiderToURL(concurrencia conc,Connection conn,Statement stmt)
+	{
+		this.conc=conc;
+		
+		try{
+			this.conn=conn;
+			this.stmt=stmt;
+			
+			primerABaixar();
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+
+	public void run()
+	{
+			try
+			{
+				InputStream b;
+				String r = url_a_baixar.toString();
+				String nomfitx, nomfitx2;
+
+				URL url_a_baixar1 = new URL(r);
+
+				URLConnection url_conn;
+				url_conn = url_a_baixar1.openConnection();
+				id_scanning();
+				
+				sense_zip(url_a_baixar);
+				
+				freeResultSets();
+			}
+		catch(Exception e)
+		{
+				e.printStackTrace();
+		}
+	}
+		
+			
+		public void sense_zip(URL b)
+		{
+			try
+			{
+					String a=new String();
+					String ascii=new String();
+					String c=new String();
+					Character f= new Character('1');
+					int i;
+
+		
+					System.out.println("Downloading Page..."+url_a_baixar.toString());
+				
+					BufferedReader dis  = new BufferedReader(new InputStreamReader( b.openStream())); 
+					
+					i=dis.read();
+					f= new Character((char)i);
+					
+					c=f.toString();
+					a+=c;
+					while(i!=-1)
+					{
+						i=dis.read();
+						f= new Character((char)i);
+						c=f.toString();
+				
+						if(i!=-1)
+							a+=c;
+					}
+					HTML2ASCII d = new HTML2ASCII(b.openStream());
+	
+					do
+					{
+						i=d.read();
+						f= new Character((char)i);
+						c=f.toString();
+
+						if(i!=-1)
+							ascii+=c;
+					}while(i!=-1);
+					ascii=ascii.toLowerCase();
+					
+					control=false;
+					while(!control)
+					{	
+						System.out.print(".");
+						if(!conc.isLocked())
+						{
+							conc.lock();
+							afegirHTML(a,url_a_baixar.toString());
+							coincidencies coin = new coincidencies(url_a_baixar,ascii,a,conn,stmt);
+							control=true;
+							conc.unLock();
+						}
+						else
+						{
+							System.out.print(".");
+							control=false;
+							this.sleep(5000);
+						}
+					}
+					
+					System.out.println("Pagina en mem騬ia.");
+					Pattern p;
+					Matcher m;
+					boolean resultado;
+
+					p = Pattern.compile("(www\\.*)+(([a-z0-9_]|\\-)+\\.)+[a-z]{2,4}");
+
+					m = p.matcher(a);
+					
+					resultado=m.find();
+					i=0;
+
+					
+					while(resultado)
+					{
+						i++;
+						String nova_adreca= new String(a.subSequence(m.start(),m.end()).toString());
+	
+						if(!nova_adreca.startsWith("http://"))
+						{
+							nova_adreca="http://"+nova_adreca;
+						}
+			
+						afegirNovaURL(nova_adreca);
+						
+						
+						
+						resultado=m.find();
+						
+					}								
+						
+					linkCounter();
+	
+			}
+			catch(IOException e)
+			{
+				posarAVistos(url_a_baixar.toString());
+				System.out.println("La URL "+url_a_baixar.toString()+" no existeix.");	
+			}
+			catch(Exception e)
+			{
+					e.printStackTrace();
+			}
+			finally
+			{ 
+
+
+				if (rs != null) 
+				{ 
+					try 
+					{
+						rs.close(); 
+					}
+					catch (SQLException sqlEx) 
+					{
+					} 
+
+					rs = null; 
+				}
+			}
+		}
+		
+		
+	public String eliminaExpresion(String pattern,String text)
+	{
+		Pattern p;
+		Matcher m;
+		boolean resultado=true;
+		String paraula="";
+		
+		try
+		{
+			text=text.replaceAll(pattern,"");
+		}
+		catch(Exception e)
+		{
+			System.out.println("ERROR: Replacing Pattern!");
+			e.printStackTrace();
+		}
+		
+		return text;
+	}
+		
+	
+	public void posarAVistos(String novaAdreca)
+	{
+		try
+		{
+			if(stmt.execute("SELECT * FROM vistes WHERE url='"+novaAdreca+"'"))
+			{
+				try
+				{
+					int id_pagina;
+					rsPerVeure = stmt.getResultSet();
+					rsPerVeure.first(); 
+					id_pagina=rsPerVeure.getInt("id");
+				}
+				catch(SQLException ex)
+				{
+						stmt.execute("insert into vistes (url) values ('"+novaAdreca+"')");
+				}
+			}
+		}
+		catch(SQLException ex) 
+		{
+		   System.out.println("SQLException: " + ex.getMessage()); 
+		   System.out.println("SQLState: " + ex.getSQLState()); 
+		   System.out.println("VendorError: " + ex.getErrorCode()); 
+		}
+		
+		eliminaPerVeure();
+	}
+	
+	public void eliminaPerVeure()
+	{
+			
+		try{
+
+			 stmt.execute("DELETE FROM perVeure where url ='"+url_a_baixar.toString()+"' ");	  
+		  }
+		  catch(SQLException ex) 
+		  {
+
+			 System.out.println("SQLException: " + ex.getMessage()); 
+			 System.out.println("SQLState: " + ex.getSQLState()); 
+			 System.out.println("VendorError: " + ex.getErrorCode()); 
+			 ex.printStackTrace();
+		  }
+
+		
+	
+	}
+	
+	public void id_scanning()
+	{
+		try
+		{
+			rs = stmt.executeQuery("SELECT id FROM vistes WHERE url='"+url_a_baixar.toString()+"'");
+			
+			rs.first(); 
+			id_scanning=rs.getInt("id");
+		}
+		catch(SQLException ex) 
+		{
+
+		   System.out.println("SQLException: " + ex.getMessage()); 
+		   System.out.println("SQLState: " + ex.getSQLState()); 
+		   System.out.println("VendorError: " + ex.getErrorCode()); 
+		   ex.printStackTrace();
+		}
+	}
+	
+	public void linkCounter()
+	{
+		  try
+   		  {
+
+		  	int propis=n_links-n_links_other;
+		  	
+			ResultSet rs = stmt.executeQuery("SELECT * FROM vistes WHERE id ='"+id_scanning+"' ");
+
+			rs.absolute(1); 
+			rs.updateInt("n_links_propis",propis);
+			rs.updateRow(); 
+		  	
+		  	
+	
+		  }
+		  catch(SQLException ex) 
+		  {
+
+			 System.out.println("SQLException: " + ex.getMessage()); 
+			 System.out.println("SQLState: " + ex.getSQLState()); 
+			 System.out.println("VendorError: " + ex.getErrorCode()); 
+			 ex.printStackTrace();
+			 
+		  }	
+	}
+	public void linkA(String newLink)
+	{
+		
+		try
+		{
+			int id_scanned,n_times=1;
+
+
+			rsPerVeure = stmt.executeQuery("SELECT id FROM vistes WHERE url='"+newLink+"'");
+			
+			if(countItems(rsPerVeure)>0)
+			{
+				rsPerVeure.first(); 
+				id_scanned=rsPerVeure.getInt("id");
+			
+				if(id_scanned!=id_scanning)
+				{
+					rsPerVeure = stmt.executeQuery("SELECT COUNT(*) FROM links WHERE pagina_els_rep='"+id_scanned+"' AND pagina_envia='"+id_scanning+"'");
+					
+					if(countItems(rsPerVeure)>0)
+					{
+						rsPerVeure.first(); 
+						n_times=rsPerVeure.getInt(1);
+				
+						n_times++;
+					}
+					else
+					{
+						n_times=1;
+					}
+					
+					stmt.execute("insert into links (pagina_els_rep,pagina_envia,num) values ('"+id_scanned+"','"+id_scanning+"','"+n_times+"')");
+				}
+			}
+			else
+			{
+				
+			
+				System.out.println("Link a: "+newLink+" no ha estat possible");
+			
+			
+			}
+			
+		}
+		catch(SQLException ex) 
+		{
+		   System.out.println("SQLException: " + ex.getMessage()); 
+		   System.out.println("SQLState: " + ex.getSQLState()); 
+		   System.out.println("VendorError: " + ex.getErrorCode()); 
+		   ex.printStackTrace();
+		}
+	}
+	
+	public void afegirNovaURL(String novaAdreca)
+	{
+	
+		linkA(novaAdreca);
+		n_links++;		
+		
+		if((!hiEs(novaAdreca,new String("perVeure")))&&(!hiEs(novaAdreca,new String("vistes"))))
+		{ 
+			n_links_other++;
+			System.out.println("AFEGIDA "+novaAdreca);
+			
+			try{
+				stmt.execute("insert into perVeure (url) values ('"+novaAdreca+"')");
+			  }
+				  catch(SQLException ex) 
+				  {
+					 System.out.println("SQLException: " + ex.getMessage()); 
+					 System.out.println("SQLState: " + ex.getSQLState()); 
+					 System.out.println("VendorError: " + ex.getErrorCode()); 
+				  }
+
+		}
+	}
+	
+	public void primerABaixar()
+	{
+		try{
+				if (stmt.execute("SELECT * FROM perVeure ORDER BY id DESC"))
+				{
+				
+				  rsPerVeure = stmt.getResultSet();
+				  rsPerVeure.last(); 
+
+				  url_a_baixar=new URL(rsPerVeure.getString(2));
+
+				  System.out.println("A Baixar!: "+url_a_baixar.toString());
+				  posarAVistos(url_a_baixar.toString());
+				}			
+		  }
+		  catch(SQLException ex) 
+		  {
+			 System.out.println("SQLException: " + ex.getMessage()); 
+			 System.out.println("SQLState: " + ex.getSQLState()); 
+			 System.out.println("VendorError: " + ex.getErrorCode()); 
+		  }
+		  catch(Exception ex )
+		  {
+			ex.printStackTrace();
+		  }
+
+	}
+
+	public boolean hiEs(String url,String taula)
+		{
+			int i=0;
+			try
+			{
+				ResultSet rs = stmt.executeQuery("SELECT * FROM "+taula+" WHERE url='"+url+"'");
+				
+				 while (rs.next()) 
+				 {
+					
+						 i++;	
+				 }
+
+			}
+			catch(SQLException ex) 
+			{
+				   System.out.println("SQLException: " + ex.getMessage()); 
+				   System.out.println("SQLState: " + ex.getSQLState()); 
+				   System.out.println("VendorError: " + ex.getErrorCode()); 
+			}
+	
+			if(i>0)
+				return true;
+			else
+				return false;
+	
+		}
+
+	public void afegirHTML(String a,String url)
+	{
+		try
+		{
+			ResultSet rs = stmt.executeQuery("SELECT * FROM vistes WHERE url ='"+url+"' ");
+
+			
+			rs.absolute(1); 
+			rs.updateString(3,a);
+			rs.updateRow(); 
+ 
+		}
+		catch(SQLException ex) 
+		{
+			   System.out.println("SQLException: " + ex.getMessage()); 
+			   System.out.println("SQLState: " + ex.getSQLState()); 
+			   System.out.println("VendorError: " + ex.getErrorCode()); 
+		}
+	}
+
+	public void freeResultSets()
+	{
+		
+		if (rs != null) 
+		{ 
+			try 
+			{
+				rs.close(); 
+			}
+			catch (SQLException sqlEx) 
+			{ 
+			} 
+
+			rs = null; 
+		}
+		if (rsPerVeure != null) 
+		{ 
+			try 
+			{
+				rsPerVeure.close(); 
+			}
+			catch (SQLException sqlEx) 
+			{ 
+			} 
+
+			rs = null; 
+		}
+		if (rsVistos != null) 
+		{ 
+			try 
+			{
+				rsVistos.close(); 
+			}
+			catch (SQLException sqlEx) 
+			{ 
+			} 
+
+			rs = null; 
+		}
+	
+	}
+	
+	public int countItems(ResultSet rs)
+	{
+		int i=0;
+		try{
+		
+		while(rs.next())
+			i++;
+				
+		}
+		catch(Exception e)
+		{
+			System.out.println("ERROR: while counting items");
+			e.printStackTrace();
+			
+		
+		}
+		return i;
+	}	
+	
+}
